@@ -6,9 +6,13 @@ Integrates AI agents for automated compliance, security, and audit workflows
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
+import argparse
+import subprocess
+import shlex
+import json
 
 try:
     import yaml
@@ -51,17 +55,18 @@ class HealthcareAIFramework:
         self.logger = logging.getLogger(__name__)
     
     def _initialize_agents(self) -> Dict[str, ComplianceAgent]:
-        """Initialize AI agents based on configuration"""
+        """Initialize AI agents based on configuration (skip non-dict entries like default_model)"""
         agents = {}
-        
-        for agent_name, config in self.config.get("ai_agents", {}).items():
-            if config.get("enabled", False):
+        cfg = self.config.get("ai_agents", {})
+        for agent_name, meta in cfg.items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("enabled", False):
                 agents[agent_name] = ComplianceAgent(
                     name=agent_name,
-                    model=config.get("models", ["gpt-4"])[0],
-                    responsibilities=config.get("responsibilities", [])
+                    model=meta.get("models", [cfg.get("default_model", "gpt-4")])[0],
+                    responsibilities=meta.get("responsibilities", [])
                 )
-        
         return agents
     
     async def analyze_commit_compliance(self, commit_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -255,24 +260,77 @@ class HealthcareAIFramework:
         
         return report
 
-# Example usage for AI agent integration
-async def main():
-    framework = HealthcareAIFramework("config/git-forensics-config.yaml")
-    
-    # Example commit data
-    commit_data = {
-        "sha": "abc123def456",
-        "message": "feat(phi): add patient data encryption",
-        "files": ["services/phi-service/encryption.py", "lib/security/crypto.py"],
-        "author": "developer@healthcare.com"
-    }
-    
-    # Analyze commit compliance
-    results = await framework.analyze_commit_compliance(commit_data)
-    
-    # Generate report
+# Utility: safe git command runner
+def _run_git(cmd: str) -> Tuple[int, str, str]:
+    parts = shlex.split(cmd)
+    proc = subprocess.Popen(parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    return proc.returncode, out.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
+
+def _sanitize_ref(ref: str) -> str:
+    bad = [';', '&', '|', '`', '$', '(', ')', '>', '<']
+    if any(b in ref for b in bad):
+        raise ValueError(f"Invalid ref: {ref}")
+    return ref
+
+def load_commit_data(ref: str) -> Dict[str, Any]:
+    ref = _sanitize_ref(ref)
+    code, out, err = _run_git(f"git show --name-only --format=%H%n%B {ref}")
+    if code != 0:
+        raise RuntimeError(f"git show failed: {err}")
+    lines = out.splitlines()
+    if not lines:
+        raise RuntimeError("Empty git show output")
+    sha = lines[0].strip()
+    # Commit message until blank line or file list separation
+    message_lines = []
+    file_lines = []
+    parsing_files = False
+    for line in lines[1:]:
+        if not parsing_files and line.strip() == "":
+            parsing_files = True
+            continue
+        if parsing_files:
+            if line.strip():
+                file_lines.append(line.strip())
+        else:
+            message_lines.append(line.rstrip())
+    message = "\n".join(message_lines).strip()
+    return {"sha": sha, "message": message, "files": file_lines}
+
+def analyze_commit(ref: str, json_output: bool) -> Dict[str, Any]:
+    # Resolve config path relative to repo root or script directory
+    script_dir = Path(__file__).parent.parent
+    default_cfg = script_dir / "config" / "git-forensics-config.yaml"
+    local_cfg = Path("config/git-forensics-config.yaml")
+    cfg_path = local_cfg if local_cfg.exists() else default_cfg
+    framework = HealthcareAIFramework(str(cfg_path))
+    commit_data = load_commit_data(ref)
+    results = asyncio.run(framework.analyze_commit_compliance(commit_data))
     report = framework.generate_compliance_report(results)
-    print(report)
+    output = {"commit_analysis": results, "human_report": report}
+    if json_output:
+        print(json.dumps(output, indent=2))
+    else:
+        print(report)
+    return output
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Healthcare AI Compliance Framework CLI")
+    sub = p.add_subparsers(dest="command", required=False)
+    ac = sub.add_parser("analyze-commit", help="Analyze a single commit for healthcare compliance")
+    ac.add_argument("ref", nargs="?", default="HEAD", help="Git ref / commit SHA (default HEAD)")
+    ac.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable report")
+    return p
+
+def cli_main():
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.command == "analyze-commit":
+        analyze_commit(args.ref, args.json)
+    else:
+        # Default: analyze HEAD if no subcommand provided
+        analyze_commit("HEAD", False)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    cli_main()

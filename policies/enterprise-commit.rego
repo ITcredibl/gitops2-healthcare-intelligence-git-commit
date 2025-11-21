@@ -34,14 +34,6 @@ commit_ok(c) if {
   valid_format(c.message)
   not low_signal(c.message)
   not regex.match("^security\\([^)]+\\):", c.message)
-  healthcare_compliance_required(c)
-  has_compliance_metadata(c)
-}
-
-commit_ok(c) if {
-  valid_format(c.message)
-  not low_signal(c.message)
-  not regex.match("^security\\([^)]+\\):", c.message)
   fda_validation_required(c)
   has_fda_validation(c)
 }
@@ -54,11 +46,13 @@ commit_ok(c) if {
 }
 
 # Multi-domain high risk requires explicit compliance metadata (WHY: cross-domain changes elevate audit risk)
+# Updated: now requires BOTH HIPAA and PHI-Impact lines to pass.
 commit_ok(c) if {
   multi_domain_high_risk(c)
   valid_format(c.message)
   not low_signal(c.message)
   has_compliance_metadata(c)
+  has_phi_impact_metadata(c)
 }
 
 valid_format(msg) if {
@@ -71,8 +65,7 @@ low_signal(msg) if { contains(lower(msg), "temp") }
 
 # --- Helper stubs (WHY: simplify demo; real logic would parse metadata) ---
 healthcare_compliance_required(c) if { regex.match(".*\\b(phi|medical|fda)\\b.*", lower(c.message)) }
-
-has_compliance_metadata(c) if { contains(lower(c.message), "hipaa") }
+healthcare_compliance_required(c) if { multi_domain_high_risk(c) }
 
 fda_validation_required(c) if { contains(lower(c.message), "device") }
 
@@ -82,4 +75,31 @@ security_commit_touches_critical(c) if {
   regex.match("^security\\([^)]+\\):", c.message)
   some i
   contains(c.changed_files[i], "payment-gateway")
+}
+
+# --- Structured metadata parsing helpers (WHY: move from naive substring to explicit key parsing) ---
+lines(msg) = split(msg, "\n")
+
+has_line_prefix(msg, p) if {
+  some i
+  li := lines(lower(msg))[i]
+  startswith(li, lower(p))
+}
+
+# Consolidated: only line-based compliance metadata retained (WHY: remove naive substring match) 
+has_compliance_metadata(c) if {
+  has_line_prefix(c.message, "hipaa:")
+}
+
+has_phi_impact_metadata(c) if {
+  has_line_prefix(c.message, "phi-impact:")
+}
+
+# Adjust healthcare compliance requirement (single-domain): if term appears require HIPAA line
+commit_ok(c) if {
+  valid_format(c.message)
+  not low_signal(c.message)
+  healthcare_compliance_required(c)
+  not multi_domain_high_risk(c)
+  has_compliance_metadata(c)
 }

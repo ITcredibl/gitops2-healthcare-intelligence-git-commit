@@ -258,6 +258,104 @@ See [`.github/workflows/risk-adaptive-pipeline.yml`](.github/workflows/risk-adap
 
 ---
 
+## 🔄 What's New (v1.1.0-dev)
+Recent enhancements after v1.0.0 release:
+- Unified multi-domain compliance enforcement: payment + auth changes now REQUIRE both `HIPAA:` and `PHI-Impact:` lines.
+- Removed legacy substring metadata checks; switched to line-prefixed (`HIPAA:`, `PHI-Impact:`) structured parsing.
+- Risk-adaptive pipeline stages (Compliance Framework, Regression Detection, Deployment Strategy) now ALWAYS execute with internal gating instead of being skipped.
+- Added `workflow_dispatch` trigger for manual pipeline runs.
+- Introduced AI Compliance CLI (`ai_compliance_framework.py analyze-commit`) for local + CI usage.
+- Deployment strategy summary improved (standard / canary / manual-approval) with canary rollout simulation script.
+- Commit generator surfaces active AI model (audit traceability).
+- Policy tests: all 6 pass including multi-domain PHI impact negative case.
+- CLI safety: validation for commit refs and YAML config loading.
+
+## ⚙️ Quick Feature Matrix
+| Capability | Implementation | How to Use |
+|------------|----------------|-----------|
+| Multi-Domain Compliance | OPA policy requires HIPAA + PHI-Impact | Include both lines in commit body for payment+auth changes |
+| AI Compliance Analysis | `tools/ai_compliance_framework.py` | `python3 tools/ai_compliance_framework.py analyze-commit HEAD --json` |
+| Risk Scoring | `tools/git_intel/risk_scorer.py` | `python3 tools/git_intel/risk_scorer.py --max-commits 10 --json` |
+| Regression Detection | `tools/intelligent_bisect.py` | `python3 tools/intelligent_bisect.py --baseline HEAD~5 --target HEAD` |
+| Canary Simulation | `scripts/canary_rollout_sim.sh` | Auto-run in pipeline (medium risk) or manual execute |
+| Compliance Commit Generation | `healthcare_commit_generator.py` | See generator example below |
+
+## 🧪 Local Verification Checklist
+Run before opening a PR:
+```zsh
+opa test policies/                       # All 6 tests should pass
+python3 tools/ai_compliance_framework.py analyze-commit HEAD --json | jq '.commit_analysis.compliance_status'
+python3 tools/git_intel/risk_scorer.py --max-commits 8 --json | jq '.summary.average_risk_score'
+python3 tools/intelligent_bisect.py --baseline HEAD~5 --target HEAD --threshold-ms 200
+cd services/payment-gateway && go test ./... && cd ../auth-service && go test ./...
+```
+
+## 🛡️ Multi-Domain Commit Requirements
+If a commit touches both `services/payment-gateway/` and `services/auth-service/`:
+Add lines (exact prefixes) in commit body:
+```
+HIPAA: compliant
+PHI-Impact: <none|low|medium|high>
+```
+Missing `PHI-Impact:` will fail OPA policy tests and block CI.
+
+## 🚀 Deployment Strategy Logic
+| Risk Score | Strategy | Actions |
+|-----------|----------|---------|
+| < 0.5 | standard | Direct deploy + health checks |
+| 0.5–0.8 | canary | Simulated staged rollout (5% → 25% → 100%) |
+| > 0.8 | manual-approval | Requires security + compliance approval (2 approvers) |
+
+View outcome in workflow summary (`risk-adaptive-pipeline.yml`). Manual trigger available via GitHub UI (Workflow Dispatch).
+
+## 📊 Coverage Enablement
+Current badge is a placeholder. To activate live coverage:
+1. Add Codecov token (org/repo or App install) as secret `CODECOV_TOKEN`.
+2. Pipeline already uploads `coverage.out` per service.
+3. Replace badge with:
+```
+[![Coverage](https://codecov.io/gh/<org>/<repo>/branch/main/graph/badge.svg)](https://codecov.io/gh/<org>/<repo>)
+```
+
+## 🧬 AI Compliance CLI Usage
+Analyze latest commit:
+```zsh
+python3 tools/ai_compliance_framework.py analyze-commit HEAD --json | jq '.commit_analysis'
+```
+Analyze specific commit:
+```zsh
+python3 tools/ai_compliance_framework.py analyze-commit <sha> --json
+```
+Outputs `compliance_status` values: `COMPLIANT | CONDITIONAL_APPROVAL | REQUIRES_REVIEW | NON_COMPLIANT`.
+
+## 🛠 Commit Generator (Updated)
+Example (multi-domain PHI + security):
+```zsh
+python3 tools/healthcare_commit_generator.py \
+  --type security \
+  --scope phi \
+  --description "implement patient data encryption" \
+  --files services/phi-service/encryption.go lib/security/crypto.go
+```
+Include structured lines before pushing for multi-domain:
+```
+HIPAA: compliant
+PHI-Impact: low
+```
+
+## 🔍 Intelligent Regression Detection
+Run targeted performance test sweep:
+```zsh
+python3 tools/intelligent_bisect.py \
+  --baseline HEAD~8 \
+  --target HEAD \
+  --test-cmd "cd services/payment-gateway && go test -run TestPerformanceCompliance ./..." \
+  --threshold-ms 200
+```
+If any commit exceeds latency threshold or test fails, it is flagged.
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! To maintain our GitOps 2.0 standards:
@@ -352,16 +450,16 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## 🏆 Achievement
 
-**Platform Status**: ✅ PRODUCTION-READY
+**Platform Status**: ✅ PRODUCTION-READY (Advancing to v1.1.0-dev)
 
 - 6/6 AI tools demonstrating all 7 GitOps 2.0 principles
 - 3/3 healthcare services fully implemented
-- 8/8 tests passing (6 Go + 2 OPA)
-- Complete CI/CD pipeline with risk-adaptive deployment
+- 8/8 tests passing (Go + OPA) + structured compliance CLI working
+- Pipeline stages always executed (internal gating) with dynamic deployment
 - 100% GitOps 2.0 manifesto alignment
 
 **Built with ❤️ for healthcare engineering excellence**
 
 ---
 
-*Version 1.0.0 | Last Updated: November 21, 2025*
+*Version 1.1.0-dev | Last Updated: November 21, 2025*

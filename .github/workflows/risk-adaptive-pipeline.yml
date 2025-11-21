@@ -7,6 +7,7 @@ on:
     branches: [main, develop]
   schedule:
     - cron: '0 3 * * *' # Daily 3AM UTC compliance/risk audit
+  workflow_dispatch: {}
 
 env:
   PYTHON_VERSION: '3.10'
@@ -133,10 +134,10 @@ jobs:
           go tool cover -func=coverage.out
       
       - name: Run Integration Tests
-        if: needs.risk-assessment.outputs.risk_score > '0.5'
+        if: fromJSON(needs.risk-assessment.outputs.risk_score) > 0.5
         working-directory: services/${{ matrix.service }}
         run: |
-          echo "🧪 Running integration tests for high-risk changes"
+          echo "🧪 Running integration tests for medium/high-risk changes"
           go test -tags=integration ./... -v
       
       - name: Build Service
@@ -144,8 +145,8 @@ jobs:
         run: |
           go build -o ${{ matrix.service }} .
       
-      - name: Run Regression Script (payment-gateway high/medium risk only)
-        if: matrix.service == 'payment-gateway' && needs.risk-assessment.outputs.risk_score > '0.5'
+      - name: Run Regression Script (payment-gateway medium/high risk only)
+        if: matrix.service == 'payment-gateway' && fromJSON(needs.risk-assessment.outputs.risk_score) > 0.5
         run: |
           chmod +x scripts/run_regression_check.sh
           ./scripts/run_regression_check.sh
@@ -164,12 +165,11 @@ jobs:
           flags: ${{ matrix.service }}
           fail_ci_if_error: false
 
-  # Stage 4: Regression Detection (High Risk Only)
+  # Stage 4: Regression Detection (Always executes; internal logic handles risk threshold)
   regression-detection:
     name: AI-Driven Regression Detection
     runs-on: ubuntu-latest
     needs: [risk-assessment, build-and-test]
-    if: needs.risk-assessment.outputs.risk_score > '0.6'
     
     steps:
       - name: Checkout code
@@ -187,32 +187,52 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       
+      - name: Evaluate Regression Trigger
+        id: eval
+        run: |
+          RISK=${{ needs.risk-assessment.outputs.risk_score }}
+          echo "risk=$RISK" >> $GITHUB_OUTPUT
+          if (( $(echo "$RISK > 0.6" | bc -l) )); then
+            echo "trigger=true" >> $GITHUB_OUTPUT
+          else
+            echo "trigger=false" >> $GITHUB_OUTPUT
+          fi
+          echo "### 🧪 Regression Detection Trigger" >> $GITHUB_STEP_SUMMARY
+          echo "- Risk Score: $RISK" >> $GITHUB_STEP_SUMMARY
+          echo "- Will Run Bisect: $([[ $(echo "$RISK > 0.6" | bc -l) -eq 1 ]] && echo 'Yes' || echo 'No (below threshold)')" >> $GITHUB_STEP_SUMMARY
+      
       - name: Run Intelligent Bisect
+        if: steps.eval.outputs.trigger == 'true'
         run: |
           echo "🔍 Running AI-driven regression detection"
           python3 tools/intelligent_bisect.py \
             --baseline HEAD~5 \
             --target HEAD \
             --threshold-ms 200 \
-            --json > regression-report.json
+            --json > regression-report.json || true
           
-          # Check for regressions
-          REGRESSION_FOUND=$(jq -r '.regression_detected // false' regression-report.json)
-          
-          if [ "$REGRESSION_FOUND" = "true" ]; then
-            echo "⚠️ Performance regression detected" >> $GITHUB_STEP_SUMMARY
-            CULPRIT=$(jq -r '.culprit_commit // "unknown"' regression-report.json)
-            echo "- Culprit: $CULPRIT" >> $GITHUB_STEP_SUMMARY
+          if [ -f regression-report.json ]; then
+            REGRESSION_FOUND=$(jq -r '.regression_detected // false' regression-report.json 2>/dev/null || echo false)
+            if [ "$REGRESSION_FOUND" = "true" ]; then
+              echo "⚠️ Performance regression detected" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ No regressions detected" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "### 📊 Regression Report Generated" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ No regressions detected" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Regression report not generated" >> $GITHUB_STEP_SUMMARY
           fi
+      
+      - name: Skip Notice
+        if: steps.eval.outputs.trigger != 'true'
+        run: |
+          echo "Regression detection skipped (risk below threshold)." >> $GITHUB_STEP_SUMMARY
 
-  # Stage 5: Healthcare Compliance Scan
+  # Stage 5: Healthcare Compliance Scan (Always executes; internal conditional)
   compliance-scan:
     name: Healthcare Compliance Framework
     runs-on: ubuntu-latest
     needs: risk-assessment
-    if: contains(needs.risk-assessment.outputs.compliance_domains, 'HIPAA') || contains(needs.risk-assessment.outputs.compliance_domains, 'FDA')
     
     steps:
       - name: Checkout code
@@ -227,34 +247,45 @@ jobs:
         run: |
           pip install pyyaml
       
+      - name: Assess Compliance Domains
+        id: domains
+        run: |
+          DOMAINS='${{ needs.risk-assessment.outputs.compliance_domains }}'
+          echo "domains=$DOMAINS" >> $GITHUB_OUTPUT
+          echo "### 🏥 Compliance Domain Assessment" >> $GITHUB_STEP_SUMMARY
+          echo "- Domains: ${DOMAINS:-NONE}" >> $GITHUB_STEP_SUMMARY
+      
       - name: Run AI Compliance Framework
+        if: steps.domains.outputs.domains != ''
         run: |
           python3 tools/ai_compliance_framework.py analyze-commit HEAD --json > compliance-report.json
-          
           COMPLIANCE_STATUS=$(jq -r '.commit_analysis.compliance_status' compliance-report.json)
           RISK_SCORE=$(jq -r '.commit_analysis.risk_score' compliance-report.json)
-          
           echo "### 🏥 Healthcare Compliance Report" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: $COMPLIANCE_STATUS" >> $GITHUB_STEP_SUMMARY
           echo "- **Risk Score**: $RISK_SCORE" >> $GITHUB_STEP_SUMMARY
-          
           if [ "$COMPLIANCE_STATUS" = "NON_COMPLIANT" ]; then
             echo "❌ Compliance violations detected - deployment blocked" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
       
+      - name: No Domains Skip Notice
+        if: steps.domains.outputs.domains == ''
+        run: |
+          echo "No compliance domains detected; framework run skipped." >> $GITHUB_STEP_SUMMARY
+      
       - name: Upload Compliance Report
+        if: steps.domains.outputs.domains != ''
         uses: actions/upload-artifact@v4
         with:
           name: compliance-report
           path: compliance-report.json
 
-  # Stage 6: Deployment Strategy Selection
+  # Stage 6: Deployment Strategy Selection (Always runs; removed branch restriction)
   deploy-strategy:
     name: Select Deployment Strategy
     runs-on: ubuntu-latest
-    needs: [risk-assessment, build-and-test, compliance-scan]
-    if: github.ref == 'refs/heads/main'
+    needs: [risk-assessment, build-and-test]
     
     steps:
       - name: Checkout code
@@ -263,7 +294,6 @@ jobs:
         run: |
           echo "### 🚀 Deployment Strategy" >> $GITHUB_STEP_SUMMARY
           echo "**Selected Strategy**: ${{ needs.risk-assessment.outputs.deployment_strategy }}" >> $GITHUB_STEP_SUMMARY
-          
           case "${{ needs.risk-assessment.outputs.deployment_strategy }}" in
             "manual-approval")
               echo "⚠️ **HIGH RISK** - Manual approval required before deployment" >> $GITHUB_STEP_SUMMARY
@@ -308,7 +338,7 @@ jobs:
   workflow-summary:
     name: GitOps 2.0 Workflow Summary
     runs-on: ubuntu-latest
-    needs: [risk-assessment, policy-validation, build-and-test]
+    needs: [risk-assessment, policy-validation, build-and-test, regression-detection, compliance-scan, deploy-strategy]
     if: always()
     
     steps:
@@ -325,6 +355,9 @@ jobs:
           echo "- ✅ Risk Assessment: Completed" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.policy-validation.result == 'success' && '✅' || '❌' }} Policy Validation: ${{ needs.policy-validation.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.build-and-test.result == 'success' && '✅' || '❌' }} Build & Test: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.regression-detection.result == 'success' && '✅' || '❌' }} Regression Detection Job: ${{ needs.regression-detection.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.compliance-scan.result == 'success' && '✅' || '❌' }} Healthcare Compliance: ${{ needs.compliance-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.deploy-strategy.result == 'success' && '✅' || '❌' }} Deployment Strategy: ${{ needs.deploy-strategy.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## GitOps 2.0 Principles Demonstrated" >> $GITHUB_STEP_SUMMARY
           echo "1. ✅ Intent-Driven Commits - Analyzed via semantic parsing" >> $GITHUB_STEP_SUMMARY

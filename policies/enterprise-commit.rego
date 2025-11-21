@@ -10,9 +10,7 @@ default allow := false
 
 allow if {
   # All commits in the push satisfy commit_ok
-  every c in input.commits {
-    commit_ok(c)
-  }
+  every c in input.commits { commit_ok(c) }
 }
 
 commit_ok(c) if {
@@ -46,18 +44,24 @@ commit_ok(c) if {
 }
 
 valid_format(msg) if {
-  # Use regex.match instead of deprecated re_match
   regex.match("^(feat|fix|perf|security|docs|refactor|chore|breaking)\\([a-z-]+\\): .+", msg)
 }
 
-low_signal(msg) if {
-  contains(lower(msg), "wip")
-}
+low_signal(msg) if { contains(lower(msg), "wip") }
+low_signal(msg) if { msg == "update" }
+low_signal(msg) if { contains(lower(msg), "temp") }
 
-low_signal(msg) if {
-  msg == "update"
-}
+# --- Helper stubs (WHY: simplify demo; real logic would parse metadata) ---
+healthcare_compliance_required(c) if { regex.match(".*\\b(phi|medical|fda)\\b.*", lower(c.message)) }
 
-low_signal(msg) if {
-  contains(lower(msg), "temp")
+has_compliance_metadata(c) if { contains(lower(c.message), "hipaa") }
+
+fda_validation_required(c) if { contains(lower(c.message), "device") }
+
+has_fda_validation(c) if { contains(lower(c.message), "fda") }
+
+security_commit_touches_critical(c) if {
+  regex.match("^security\\([^)]+\\):", c.message)
+  some i
+  contains(c.changed_files[i], "payment-gateway")
 }

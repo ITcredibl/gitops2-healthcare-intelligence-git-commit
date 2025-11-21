@@ -250,6 +250,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Display Deployment Plan
         run: |
           echo "### 🚀 Deployment Strategy" >> $GITHUB_STEP_SUMMARY
@@ -274,7 +276,11 @@ jobs:
               echo "- Automated health checks enabled" >> $GITHUB_STEP_SUMMARY
               ;;
           esac
-      
+      - name: Run Canary Rollout Simulation
+        if: needs.risk-assessment.outputs.deployment_strategy == 'canary'
+        run: |
+          chmod +x scripts/canary_rollout_sim.sh
+          ./scripts/canary_rollout_sim.sh
       - name: Manual Approval Gate
         if: needs.risk-assessment.outputs.deployment_strategy == 'manual-approval'
         uses: trstringer/manual-approval@v1

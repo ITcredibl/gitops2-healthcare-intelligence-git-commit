@@ -151,11 +151,18 @@ jobs:
           ./scripts/run_regression_check.sh
       
       - name: Upload Coverage
-        if: matrix.service == 'payment-gateway'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.service }}
           path: services/${{ matrix.service }}/coverage.out
+
+      - name: Upload to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: services/${{ matrix.service }}/coverage.out
+          flags: ${{ matrix.service }}
+          fail_ci_if_error: false
 
   # Stage 4: Regression Detection (High Risk Only)
   regression-detection:

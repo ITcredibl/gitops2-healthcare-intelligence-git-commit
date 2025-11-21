@@ -6,6 +6,7 @@
 [![AI Model](https://img.shields.io/badge/AI%20Model-gpt--5.1--codex-blue)](#)
 [![Security Scan](https://img.shields.io/github/actions/workflow/status/Oluseyi-Kofoworola/gitops2-healthcare-intelligence-git-commit/codeql-security-scan.yml?label=CodeQL%20Security)](../../security/code-scanning)
 [![Dependabot](https://img.shields.io/badge/Dependabot-Automated%20Updates-blue)](../../network/updates)
+[![Coverage Status](https://img.shields.io/badge/Coverage-Pending-lightgrey)](#)
 
 This repository is a **production-ready blueprint for GitOps 2.0**, showing how to transform Git from a passive log into an AI-native engineering intelligence platform. Every component is mapped to the principles in "GitOps 2.0: The AI-Native Engineering Manifesto for the Next Decade" and enhanced with **healthcare-specific compliance, security, and AI audit capabilities**.
 

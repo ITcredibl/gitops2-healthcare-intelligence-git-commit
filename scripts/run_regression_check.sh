@@ -6,7 +6,8 @@ MAX_LATENCY_MS=250
 
 echo "[regression] starting payment-gateway on :$PORT"
 pushd services/payment-gateway > /dev/null
-go build -o /tmp/payment-gateway-test main.go server.go handlers.go config.go payment.go
+# Include monitoring.go for metrics/audit handlers and RecordTransaction
+go build -o /tmp/payment-gateway-test main.go server.go handlers.go monitoring.go config.go payment.go
 PORT=$PORT MAX_PROCESSING_MILLIS=200 /tmp/payment-gateway-test &
 SERVICE_PID=$!
 popd > /dev/null
@@ -29,17 +30,20 @@ REQUEST_PAYLOAD='{"amount_cents":1000,"currency":"USD","customer_id":"cust-123",
 ITERATIONS=10
 total_ms=0
 
+python_ts() { python3 - <<'PY'
+import time; print(int(time.time()*1000))
+PY
+}
+
 echo "[regression] running $ITERATIONS charge requests..."
 for i in $(seq 1 $ITERATIONS); do
-  start=$(date +%s%3N)
-  http_code=$(curl -s -o /tmp/charge_resp.json -w "%{http_code}"     -X POST     -H "Content-Type: application/json"     -d "$REQUEST_PAYLOAD"     "http://localhost:$PORT/charge")
-  end=$(date +%s%3N)
-
+  start=$(python_ts)
+  http_code=$(curl -s -o /tmp/charge_resp.json -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "$REQUEST_PAYLOAD" "http://localhost:$PORT/charge")
+  end=$(python_ts)
   if [ "$http_code" -ne 200 ]; then
     echo "[regression] request $i failed with status $http_code"
     exit 1
   fi
-
   elapsed=$((end - start))
   total_ms=$((total_ms + elapsed))
   echo "[regression] request $i took ${elapsed}ms"

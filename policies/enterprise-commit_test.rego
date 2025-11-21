@@ -29,3 +29,10 @@ test_multi_domain_missing_metadata if {
   test_input := {"commits": [{"sha": "xyz222", "message": "feat(payment): cross-domain payment/auth sync", "changed_files": ["services/payment-gateway/payment.go", "services/auth-service/main.go"]}]}
   not allow with input as test_input
 }
+
+# Multi-domain payment+auth with compliance metadata variant
+
+test_multi_domain_auth_payment if {
+  test_input := {"commits": [{"sha": "xyz333", "message": "feat(auth): synchronize token scopes with payment HIPAA", "changed_files": ["services/payment-gateway/payment.go", "services/auth-service/main.go"]}]}
+  allow with input as test_input
+}

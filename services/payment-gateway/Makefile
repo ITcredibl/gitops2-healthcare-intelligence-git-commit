@@ -1,7 +1,7 @@
 SERVICE_NAME := payment-gateway
 IMAGE := gitops2-demo/$(SERVICE_NAME):local
 
-.PHONY: test build run docker-build docker-run
+.PHONY: test build run docker-build docker-run regression coverage
 
 test:
 	go test ./...
@@ -17,3 +17,9 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 8080:8080 $(IMAGE)
+
+regression:
+	chmod +x ../../scripts/run_regression_check.sh && ../../scripts/run_regression_check.sh
+
+coverage:
+	go test ./... -coverprofile=coverage.out && go tool cover -func=coverage.out

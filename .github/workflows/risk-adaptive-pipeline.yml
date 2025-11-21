@@ -113,7 +113,7 @@ jobs:
     
     strategy:
       matrix:
-        service: [payment-gateway]
+        service: [payment-gateway, auth-service]
     
     steps:
       - name: Checkout code
@@ -141,6 +141,19 @@ jobs:
         working-directory: services/${{ matrix.service }}
         run: |
           go build -o ${{ matrix.service }} .
+      
+      - name: Run Regression Script (payment-gateway high/medium risk only)
+        if: matrix.service == 'payment-gateway' && needs.risk-assessment.outputs.risk_score > '0.5'
+        run: |
+          chmod +x scripts/run_regression_check.sh
+          ./scripts/run_regression_check.sh
+      
+      - name: Upload Coverage
+        if: matrix.service == 'payment-gateway'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          path: services/${{ matrix.service }}/coverage.out
 
   # Stage 4: Regression Detection (High Risk Only)
   regression-detection:

@@ -286,6 +286,11 @@ All commits must follow Conventional Commits with healthcare metadata:
 - **Secrets Management**: All secrets must be in environment variables or secret managers
 - **Code Scanning**: Automated security scanning via GitHub Advanced Security
 
+### Security & Dependency Status
+- CodeQL: Weekly scans (see Security > Code scanning alerts)
+- Dependabot: Automated PRs for Go, Actions, npm
+- npm audit: 5 low vulnerabilities (tmp transitive). Scheduled review; low severity accepted until major version upgrade alignment.
+
 ### Compliance Frameworks
 
 This platform demonstrates compliance with:

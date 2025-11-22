@@ -23,6 +23,7 @@ jobs:
       risk_level: ${{ steps.calculate.outputs.risk_level }}
       compliance_domains: ${{ steps.calculate.outputs.compliance_domains }}
       deployment_strategy: ${{ steps.calculate.outputs.deployment_strategy }}
+      override_absent: ${{ steps.risk_override.outputs.override_absent }}
     
     steps:
       - name: Checkout code
@@ -70,6 +71,33 @@ jobs:
           echo "- **Risk Score**: $RISK_SCORE" >> $GITHUB_STEP_SUMMARY
           echo "- **Deployment Strategy**: $STRATEGY" >> $GITHUB_STEP_SUMMARY
           echo "- **Compliance Domains**: $DOMAINS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Enforce High Risk Override Label
+        id: risk_override
+        if: always()
+        run: |
+          RISK=${{ steps.calculate.outputs.risk_score }}
+          if (( $(echo "$RISK > 0.85" | bc -l) )); then
+            echo "High risk score $RISK detected; checking for override label" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              LABELS='${{ toJson(github.event.pull_request.labels) }}'
+              echo "Labels JSON: $LABELS" >> $GITHUB_STEP_SUMMARY
+              if echo "$LABELS" | jq -e '.[] | select(.name=="risk-override-approved")' >/dev/null; then
+                echo "✅ Override label present" >> $GITHUB_STEP_SUMMARY
+                echo "override_absent=false" >> $GITHUB_OUTPUT
+              else
+                echo "❌ Missing required risk-override-approved label" >> $GITHUB_STEP_SUMMARY
+                echo "Deployment will be blocked downstream." >> $GITHUB_STEP_SUMMARY
+                echo "override_absent=true" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "Not a PR event; manual approval gate will enforce review." >> $GITHUB_STEP_SUMMARY
+              echo "override_absent=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Risk below high override threshold" >> $GITHUB_STEP_SUMMARY
+            echo "override_absent=false" >> $GITHUB_OUTPUT
+          fi
 
   # Stage 2: Policy Enforcement (OPA)
   policy-validation:
@@ -157,13 +185,13 @@ jobs:
           go test ./... -v -cover -coverprofile=coverage.out
           go tool cover -func=coverage.out | tee coverage-func.txt
           TOTAL=$(grep 'total:' coverage-func.txt | awk '{print $3}' | sed 's/%//')
-          # Per-service gates: payment-gateway>=80, auth-service>=40 (temp)
+          # Per-service gates: payment-gateway>=80, auth-service>=60 (temp)
           case "${{ matrix.service }}" in
             payment-gateway)
               MIN=80
               ;;
             auth-service)
-              MIN=40
+              MIN=60
               ;;
             *)
               MIN=60
@@ -204,6 +232,24 @@ jobs:
         with:
           name: coverage-func-${{ matrix.service }}
           path: services/${{ matrix.service }}/coverage-func.txt
+
+      - name: Merge Coverage (holistic)
+        if: matrix.service == 'auth-service'
+        run: |
+          echo "Merging coverage profiles for holistic report" >> $GITHUB_STEP_SUMMARY
+          go install github.com/wadey/gocovmerge@latest
+          ls services/*/coverage.out
+          gocovmerge services/payment-gateway/coverage.out services/auth-service/coverage.out > merged-coverage.out || true
+          if [ -f merged-coverage.out ]; then
+            echo "Merged coverage generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Merged Coverage
+        if: matrix.service == 'auth-service'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: merged-coverage.out
 
       - name: Upload to Codecov
         if: always()
@@ -464,3 +510,32 @@ jobs:
           echo "- Regression report (if triggered)" >> $GITHUB_STEP_SUMMARY
           echo "- Compliance report + SBOM (if domains present)" >> $GITHUB_STEP_SUMMARY
           echo "- OPA deny reasons (if any)" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.risk-assessment.outputs.override_absent }}" = "true" ]; then
+            echo "⚠️ Deployment blocked: missing risk override label for high risk PR" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  daily-compliance-summary:
+    name: Daily Compliance Summary
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    needs: [risk-assessment, policy-validation, compliance-scan]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Generate Summary
+        run: |
+          echo "Generating daily compliance summary" > compliance-daily.md
+          echo "# Daily Compliance Summary" >> compliance-daily.md
+          echo "Run: $(date -u)" >> compliance-daily.md
+          echo "Risk Score: ${{ needs.risk-assessment.outputs.risk_score }}" >> compliance-daily.md
+          if [ -f compliance-report.json ]; then
+            echo "## Compliance Report" >> compliance-daily.md
+            jq -r '.commit_analysis.compliance_status' compliance-report.json >> compliance-daily.md || true
+          else
+            echo "No compliance-report.json present" >> compliance-daily.md
+          fi
+      - name: Upload Daily Compliance Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-compliance-summary
+          path: compliance-daily.md

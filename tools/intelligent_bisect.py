@@ -150,5 +150,10 @@ def main() -> None:
         print("\n✅ No regressions detected above threshold in this range.")
 
 
+def main_entry():
+    # Entry point wrapper for console_scripts
+    main()
+
+
 if __name__ == "__main__":
     main()

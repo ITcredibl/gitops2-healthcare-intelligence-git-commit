@@ -158,5 +158,10 @@ def main() -> None:
         print(f"[{label}] {score:.2f}  {c.message} ({c.sha[:8]})")
 
 
+def main_entry():
+    # Entry point wrapper for console_scripts
+    main()
+
+
 if __name__ == "__main__":
     main()

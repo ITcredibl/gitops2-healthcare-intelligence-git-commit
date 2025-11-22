@@ -332,5 +332,8 @@ def cli_main():
         # Default: analyze HEAD if no subcommand provided
         analyze_commit("HEAD", False)
 
+def main_entry():
+    cli_main()
+
 if __name__ == "__main__":
     cli_main()

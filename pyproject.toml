@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gitops2-healthcare-ai-tools"
+version = "0.1.0"
+description = "AI-driven risk, compliance, and regression tooling for GitOps 2.0 healthcare demo"
+authors = [ { name = "Demo Platform Team" } ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools"
+]
+
+[project.urls]
+Homepage = "https://example.com/gitops2-demo"
+
+[project.dependencies]
+pyyaml = "*"
+
+[project.scripts]
+risk-scorer = "git_intel.risk_scorer:main_entry"
+compliance-framework = "ai_compliance_framework:main_entry" 
+intelligent-bisect = "intelligent_bisect:main_entry"
+
+# Alternative entry point for console_scripts compatibility
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["git_intel"]
+
+[tool.setuptools.package-data]
+git_intel = ["*.py"]

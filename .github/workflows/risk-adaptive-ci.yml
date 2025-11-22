@@ -106,7 +106,7 @@ jobs:
           echo "✅ Healthcare compliance validation passed"
 
   security-scan:
-    name: Security & Vulnerability Scan
+    name: "Security & Vulnerability Scan"
     runs-on: ubuntu-latest
     needs: risk-assessment
     
@@ -145,7 +145,7 @@ jobs:
           echo "✅ Security validation completed"
 
   build-and-test:
-    name: Build & Test (Risk Level: ${{ needs.risk-assessment.outputs.risk_level }})
+    name: "Build & Test (Risk Level: ${{ needs.risk-assessment.outputs.risk_level }})"
     runs-on: ubuntu-latest
     needs: [risk-assessment, compliance-validation]
     strategy:

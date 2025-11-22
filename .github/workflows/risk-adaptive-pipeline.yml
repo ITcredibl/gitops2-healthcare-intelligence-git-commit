@@ -152,7 +152,7 @@ jobs:
 
   # Stage 3: Build & Test (Risk-Adaptive)
   build-and-test:
-    name: Build & Test (Risk Level ${{ needs.risk-assessment.outputs.risk_level }})
+    name: "Build & Test (Risk Level ${{ needs.risk-assessment.outputs.risk_level }})"
     runs-on: ubuntu-latest
     needs: [risk-assessment, policy-validation]
     

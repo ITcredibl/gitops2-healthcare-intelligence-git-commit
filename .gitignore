@@ -6,6 +6,15 @@
 # CRITICAL HEALTHCARE SECURITY - NEVER COMMIT
 # =============================================================================
 
+# EXCEPTIONS - Allow healthcare policy files and documentation
+!policies/healthcare/
+!policies/healthcare/**
+!.copilot/healthcare-*
+!.copilot/**/healthcare-*
+!docs/healthcare-*
+!healthcare-demo.sh
+!setup-healthcare-enterprise.sh
+
 # PHI and Patient Data
 **/phi/**
 **/patient-data/**

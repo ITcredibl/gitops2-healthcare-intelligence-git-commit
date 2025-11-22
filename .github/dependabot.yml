@@ -1,27 +1,47 @@
+# Dependabot configuration for GitOps 2.0 Healthcare Platform
+# Monitors Go modules in healthcare services and GitHub Actions workflows
 version: 2
 updates:
+  # Payment Gateway Service (SOX-compliant, high-risk)
   - package-ecosystem: "gomod"
     directory: "/services/payment-gateway"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "payment-gateway"
+      - "high-risk"
+  
+  # Authentication Service (HIPAA-compliant, high-risk)
   - package-ecosystem: "gomod"
     directory: "/services/auth-service"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "auth-service"
+      - "high-risk"
+  
+  # Synthetic PHI Service (HIPAA-compliant, healthcare data)
   - package-ecosystem: "gomod"
-    directory: "/services/phi-service"
+    directory: "/services/synthetic-phi-service"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "phi-service"
+      - "healthcare"
+  
+  # GitHub Actions Workflows (CI/CD security)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci-cd"

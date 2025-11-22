@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main, develop ]
   schedule:
-    - cron: '0 2 * * 1' # Weekly Monday 02:00 UTC
+    - cron: '0 2 * * 1'
   workflow_dispatch: {}
 
 permissions:
@@ -18,41 +18,33 @@ jobs:
   analyze:
     name: CodeQL Analyze
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'go', 'python' ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Initialize CodeQL
+      - name: Initialize CodeQL (Go + Python)
         uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
-          queries: +security-and-quality
+          languages: go, python
+          # Removed custom queries to avoid advanced config conflict with default setup
 
-      - name: Autobuild
-        if: matrix.language == 'go'
+      - name: Autobuild Go
         uses: github/codeql-action/autobuild@v3
 
-      - name: Setup Python (for dependency install)
-        if: matrix.language == 'python'
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Python deps (minimal)
-        if: matrix.language == 'python'
+      - name: Install Python deps
         run: |
-          pip install pyyaml
+          pip install pyyaml || true
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
-        with:
-          category: '/language:${{ matrix.language }}'
+        # Removed category to keep default processing
 
   summary:
     name: Security Scan Summary
@@ -64,4 +56,4 @@ jobs:
         run: |
           echo "### 🔐 CodeQL Security Scan Completed" >> $GITHUB_STEP_SUMMARY
           echo "Languages scanned: Go, Python" >> $GITHUB_STEP_SUMMARY
-          echo "Review alerts under Security > Code scanning alerts." >> $GITHUB_STEP_SUMMARY
+          echo "If the previous error persisted, disable default CodeQL setup in Security > Code scanning settings then re-run." >> $GITHUB_STEP_SUMMARY

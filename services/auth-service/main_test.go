@@ -43,3 +43,31 @@ func TestIntrospect(t *testing.T) {
         t.Fatalf("expected scopes present")
     }
 }
+
+func TestStartAuthServer_Routes(t *testing.T) {
+    srv := StartAuthServer(":0")
+    h := srv.Handler
+
+    // Health
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/health", nil)
+    h.ServeHTTP(rr, req)
+    if rr.Code != http.StatusOK {
+        t.Fatalf("health expected 200 got %d", rr.Code)
+    }
+    var body map[string]string
+    if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+        t.Fatalf("failed decoding body: %v", err)
+    }
+    if body["status"] != "ok" {
+        t.Fatalf("unexpected health body: %v", body)
+    }
+
+    // Introspect
+    rr = httptest.NewRecorder()
+    req = httptest.NewRequest(http.MethodGet, "/introspect", nil)
+    h.ServeHTTP(rr, req)
+    if rr.Code != http.StatusOK {
+        t.Fatalf("introspect expected 200 got %d", rr.Code)
+    }
+}

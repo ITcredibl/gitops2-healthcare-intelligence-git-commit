@@ -6,7 +6,7 @@
 [![AI Model](https://img.shields.io/badge/AI%20Model-gpt--5.1--codex-blue)](#)
 [![Security Scan](https://img.shields.io/github/actions/workflow/status/Oluseyi-Kofoworola/gitops2-healthcare-intelligence-git-commit/codeql-security-scan.yml?label=CodeQL%20Security)](../../security/code-scanning)
 [![Dependabot](https://img.shields.io/badge/Dependabot-Automated%20Updates-blue)](../../network/updates)
-[![Coverage Status](https://img.shields.io/badge/Coverage-Pending-lightgrey)](#)
+[![Coverage](https://codecov.io/gh/Oluseyi-Kofoworola/gitops2-healthcare-intelligence-git-commit/branch/main/graph/badge.svg)](https://codecov.io/gh/Oluseyi-Kofoworola/gitops2-healthcare-intelligence-git-commit)
 
 This repository is a **production-ready blueprint for GitOps 2.0**, showing how to transform Git from a passive log into an AI-native engineering intelligence platform. Every component is mapped to the principles in "GitOps 2.0: The AI-Native Engineering Manifesto for the Next Decade" and enhanced with **healthcare-specific compliance, security, and AI audit capabilities**.
 
@@ -270,52 +270,14 @@ Recent enhancements after v1.0.0 release:
 - Policy tests: all 6 pass including multi-domain PHI impact negative case.
 - CLI safety: validation for commit refs and YAML config loading.
 
-## ⚙️ Quick Feature Matrix
-| Capability | Implementation | How to Use |
-|------------|----------------|-----------|
-| Multi-Domain Compliance | OPA policy requires HIPAA + PHI-Impact | Include both lines in commit body for payment+auth changes |
-| AI Compliance Analysis | `tools/ai_compliance_framework.py` | `python3 tools/ai_compliance_framework.py analyze-commit HEAD --json` |
-| Risk Scoring | `tools/git_intel/risk_scorer.py` | `python3 tools/git_intel/risk_scorer.py --max-commits 10 --json` |
-| Regression Detection | `tools/intelligent_bisect.py` | `python3 tools/intelligent_bisect.py --baseline HEAD~5 --target HEAD` |
-| Canary Simulation | `scripts/canary_rollout_sim.sh` | Auto-run in pipeline (medium risk) or manual execute |
-| Compliance Commit Generation | `healthcare_commit_generator.py` | See generator example below |
-
-## 🧪 Local Verification Checklist
-Run before opening a PR:
-```zsh
-opa test policies/                       # All 6 tests should pass
-python3 tools/ai_compliance_framework.py analyze-commit HEAD --json | jq '.commit_analysis.compliance_status'
-python3 tools/git_intel/risk_scorer.py --max-commits 8 --json | jq '.summary.average_risk_score'
-python3 tools/intelligent_bisect.py --baseline HEAD~5 --target HEAD --threshold-ms 200
-cd services/payment-gateway && go test ./... && cd ../auth-service && go test ./...
-```
-
-## 🛡️ Multi-Domain Commit Requirements
-If a commit touches both `services/payment-gateway/` and `services/auth-service/`:
-Add lines (exact prefixes) in commit body:
-```
-HIPAA: compliant
-PHI-Impact: <none|low|medium|high>
-```
-Missing `PHI-Impact:` will fail OPA policy tests and block CI.
-
-## 🚀 Deployment Strategy Logic
-| Risk Score | Strategy | Actions |
-|-----------|----------|---------|
-| < 0.5 | standard | Direct deploy + health checks |
-| 0.5–0.8 | canary | Simulated staged rollout (5% → 25% → 100%) |
-| > 0.8 | manual-approval | Requires security + compliance approval (2 approvers) |
-
-View outcome in workflow summary (`risk-adaptive-pipeline.yml`). Manual trigger available via GitHub UI (Workflow Dispatch).
-
 ## 📊 Coverage Enablement
-Current badge is a placeholder. To activate live coverage:
-1. Add Codecov token (org/repo or App install) as secret `CODECOV_TOKEN`.
-2. Pipeline already uploads `coverage.out` per service.
-3. Replace badge with:
-```
-[![Coverage](https://codecov.io/gh/<org>/<repo>/branch/main/graph/badge.svg)](https://codecov.io/gh/<org>/<repo>)
-```
+Current badge is now live via Codecov. If you prefer GitHub App install over token, remove token requirement in workflow job.
+
+### Security & Dependency Status
+- CodeQL: Weekly scans (see Security > Code scanning alerts)
+- Dependabot: Automated PRs for Go, Actions, npm
+- Trivy: Repo filesystem scan with SARIF uploaded to code scanning
+- SBOM: CycloneDX JSON via Syft (artifact in CI)
 
 ## 🧬 AI Compliance CLI Usage
 Analyze latest commit:
@@ -388,7 +350,8 @@ All commits must follow Conventional Commits with healthcare metadata:
 ### Security & Dependency Status
 - CodeQL: Weekly scans (see Security > Code scanning alerts)
 - Dependabot: Automated PRs for Go, Actions, npm
-- npm audit: 5 low vulnerabilities (tmp transitive). Scheduled review; low severity accepted until major version upgrade alignment.
+- Trivy: Repo filesystem scan with SARIF uploaded to code scanning
+- SBOM: CycloneDX JSON via Syft (artifact in CI)
 
 ### Compliance Frameworks
 

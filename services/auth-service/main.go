@@ -2,6 +2,7 @@ package main
 
 import (
     "encoding/json"
+    "log"
     "net/http"
     "time"
 )
@@ -14,21 +15,39 @@ type AuthHandler struct{}
 
 func (h AuthHandler) Health(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+    _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (h AuthHandler) Introspect(w http.ResponseWriter, r *http.Request) {
     // Placeholder payload; would validate token & scopes.
-    json.NewEncoder(w).Encode(map[string]any{
+    _ = json.NewEncoder(w).Encode(map[string]any{
         "active": true,
         "scopes": []string{"payment:write", "phi:read"},
-        "exp": time.Now().Add(15 * time.Minute).Unix(),
+        "exp":    time.Now().Add(15 * time.Minute).Unix(),
     })
 }
 
-func main() {
+// StartAuthServer constructs an HTTP server with routes for health and introspection.
+// WHY: Improves testability and allows coverage of server wiring.
+func StartAuthServer(addr string) *http.Server {
+    mux := http.NewServeMux()
     h := AuthHandler{}
-    http.HandleFunc("/health", h.Health)
-    http.HandleFunc("/introspect", h.Introspect)
-    http.ListenAndServe(":8090", nil)
+    mux.HandleFunc("/health", h.Health)
+    mux.HandleFunc("/introspect", h.Introspect)
+
+    return &http.Server{
+        Addr:              addr,
+        Handler:           mux,
+        ReadHeaderTimeout: 2 * time.Second,
+        ReadTimeout:       5 * time.Second,
+        WriteTimeout:      10 * time.Second,
+        IdleTimeout:       30 * time.Second,
+    }
+}
+
+func main() {
+    srv := StartAuthServer(":8090")
+    if err := srv.ListenAndServe(); err != nil {
+        log.Fatalf("auth-service failed: %v", err)
+    }
 }
